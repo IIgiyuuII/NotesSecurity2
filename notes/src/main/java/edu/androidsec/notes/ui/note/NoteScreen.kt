@@ -114,8 +114,10 @@ private fun NoteContent(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.note_delete))
+                    if (!state.notFound) {
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.note_delete))
+                        }
                     }
                 },
             )
@@ -128,6 +130,16 @@ private fun NoteContent(
         ) {
             when {
                 state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.notFound -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(stringResource(R.string.note_not_found), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.note_not_found_hint), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = onBack) { Text(stringResource(R.string.note_back)) }
+                }
                 else -> Column(
                     modifier = Modifier
                         .fillMaxSize()

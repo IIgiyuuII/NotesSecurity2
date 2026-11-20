@@ -17,32 +17,33 @@ sealed interface IncomingNote {
 }
 
 /**
- * TODO(ipc-3): deep link `notes://note/<id>`.
+ * Deep link `notes://note/<id>` (ipc-3).
  *
- * Лекция 6, блок «Deep links и App Links»; проверяется шагом 4 чек-листа.
- *
- * 1. В манифесте добавьте `MainActivity` intent-filter с действием VIEW, категориями DEFAULT и
- *    BROWSABLE и данными `scheme="notes"`, `host="note"`.
- * 2. Реализуйте [parse]: данные интента — недоверенный ввод. Принимайте только схему `notes`,
- *    хост `note` и ровно один сегмент пути, который разбирается в положительное Long.
- *    Всё остальное — [IncomingNote.Invalid]: приложение показывает сообщение и не падает
- *    (обработка [IncomingNote] в `NotesNavHost` уже есть).
- * 3. Несуществующий id (`notes://note/999999`) не должен ронять экран заметки и не должен
- *    открывать пустой редактор: см. TODO(ipc-3) в `NoteViewModel`.
- *
- * Проверка: `adb shell am start -a android.intent.action.VIEW -d notes://note/1`,
- * затем то же с `999999`, `abc` и пустым id; в logcat не должно быть `FATAL EXCEPTION`.
- *
- * Сейчас это заглушка: любой интент считается обычным запуском.
+ * Данные интента приходят от любого приложения (и из браузера: у фильтра есть BROWSABLE),
+ * поэтому разбираются как недоверенный ввод: принимается только схема `notes`, хост `note`
+ * (без userinfo и порта) и путь из ровно одного сегмента — положительного числа.
  */
 object NoteDeepLink {
     const val SCHEME = "notes"
     const val HOST = "note"
 
+    /** `/<от 1 до 18 цифр>`: 18 цифр заведомо влезают в Long, переполнение невозможно. */
+    private val PATH = Regex("/([0-9]{1,18})")
+
     /** Ссылка на заметку в фиксированном формате `notes://note/<id>`. */
     fun uriFor(noteId: Long): Uri = "$SCHEME://$HOST/$noteId".toUri()
 
     fun parse(intent: Intent?): IncomingNote {
-        return IncomingNote.None
+        // Обычный запуск с лаунчера (MAIN) данных не несёт.
+        if (intent == null || intent.action != Intent.ACTION_VIEW) return IncomingNote.None
+        val data = intent.data ?: return IncomingNote.None
+
+        if (!SCHEME.equals(data.scheme, ignoreCase = true)) return IncomingNote.Invalid
+        // authority, а не host: так «notes://evil@note/1» и «notes://note:80/1» не проходят.
+        if (!HOST.equals(data.authority, ignoreCase = true)) return IncomingNote.Invalid
+
+        val match = PATH.matchEntire(data.encodedPath.orEmpty()) ?: return IncomingNote.Invalid
+        val id = match.groupValues[1].toLongOrNull()?.takeIf { it > 0L } ?: return IncomingNote.Invalid
+        return IncomingNote.Open(id)
     }
 }
