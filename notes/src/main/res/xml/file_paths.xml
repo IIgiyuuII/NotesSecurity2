@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ipc-5: FileProvider отдаёт ровно один каталог — cacheDir/exports/ (туда пишет NoteExporter).
+     Фото, база и остальные файлы приложения через провайдер недоступны. -->
+<paths>
+    <cache-path
+        name="exports"
+        path="exports/" />
+</paths>

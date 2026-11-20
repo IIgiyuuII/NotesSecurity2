@@ -2,23 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- TODO(ipc-1): разрешения.
-         Лекция 5, блоки «Protection levels» и «Изменения 2020–2024: scoped storage, photo picker,
-         POST_NOTIFICATIONS»; проверяется шагом 1 чек-листа.
-
-         Ниже перечислены разрешения, которые могут показаться нужными. Раскомментируйте только те,
-         без которых приложение не работает; остальные оставьте закомментированными или удалите.
-         Напоминание показывается уведомлением; фото выбирается системным Photo Picker.
-
+    <!-- ipc-1: единственное нужное разрешение. Напоминание показывается уведомлением, а на
+         Android 13+ для этого нужен POST_NOTIFICATIONS (runtime, запрашивается в момент нажатия
+         «Напомнить»). Не запрашиваем:
+         - CAMERA — фото выбирается системным Photo Picker, камера приложению не нужна;
+         - READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE — Photo Picker отдаёт временный доступ
+           только к выбранному файлу, доступ ко всей галерее не нужен. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    -->
 
-    <!-- TODO(ipc-6): объявите здесь собственное разрешение
-         edu.androidsec.notes.permission.READ_NOTES с protectionLevel="signature"
-         (см. TitlesProvider.kt). -->
+    <!-- ipc-6: собственное разрешение уровня signature. Его получит только приложение,
+         подписанное тем же ключом, что и «Заметки». -->
+    <permission
+        android:name="edu.androidsec.notes.permission.READ_NOTES"
+        android:description="@string/permission_read_notes_description"
+        android:label="@string/permission_read_notes_label"
+        android:protectionLevel="signature" />
 
     <application
         android:name=".NotesApp"
@@ -28,14 +26,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Notes">
 
-        <!-- TODO(ipc-1): у КАЖДОГО компонента в итоговом (merged) манифесте должен быть явно
-             задан android:exported, а экспортированы только лаунчер, провайдер заголовков и
-             компоненты, закрытые разрешением уровня signature.
-             Merged manifest включает компоненты библиотек: посмотрите его во вкладке
-             Merged Manifest в Android Studio или командой scripts/check.sh manifest.
-             Для каждого экспортированного компонента библиотеки разберитесь, кто может его
-             вызвать. Ненужный компонент убирается через tools:node="remove"; на защите
-             объясните, почему убрали или оставили. -->
+        <!-- ipc-1: exported задан у каждого компонента. Экспортированы только лаунчер
+             (MainActivity) и провайдер заголовков (под signature-разрешением). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,18 +37,52 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- TODO(ipc-3): intent-filter для deep link notes://note/<id> (см. NoteDeepLink.kt). -->
+            <!-- ipc-3: deep link notes://note/<id>. Фильтр пропускает схему и хост, а путь
+                 (ровно один сегмент — положительное число) строго проверяет
+                 NoteDeepLink.parse(): данные интента — недоверенный ввод. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="notes"
+                    android:host="note" />
+            </intent-filter>
         </activity>
 
-        <!-- TODO(ipc-4): объявите ресивер .reminder.ReminderActionReceiver, закрытый для других
-             приложений (см. ReminderActionReceiver.kt). -->
+        <!-- ipc-4: кнопку «Готово» вызывает только наш PendingIntent (он отправляется от имени
+             приложения), поэтому ресиверу экспорт не нужен. -->
+        <receiver
+            android:name=".reminder.ReminderActionReceiver"
+            android:exported="false" />
 
-        <!-- TODO(ipc-5): объявите androidx.core.content.FileProvider с authority
-             edu.androidsec.notes.files (см. ShareNote.kt). -->
+        <!-- ipc-5: FileProvider не экспортирован; доступ выдаётся адресно через
+             FLAG_GRANT_READ_URI_PERMISSION на один URI. Каталоги — в @xml/file_paths. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="edu.androidsec.notes.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
-        <!-- TODO(ipc-6): объявите провайдер .provider.TitlesProvider с authority
-             edu.androidsec.notes.provider, защищённый signature-разрешением
-             (см. TitlesProvider.kt). -->
+        <!-- ipc-6: провайдер заголовков «для своих». Экспортирован, но android:permission
+             закрывает и чтение, и запись signature-разрешением (одного readPermission мало). -->
+        <provider
+            android:name=".provider.TitlesProvider"
+            android:authorities="edu.androidsec.notes.provider"
+            android:exported="true"
+            android:permission="edu.androidsec.notes.permission.READ_NOTES" />
+
+        <!-- ipc-1: ProfileInstallReceiver приходит из androidx.profileinstaller: он экспортирован
+             и закрыт android.permission.DUMP, которым обладает shell, то есть его можно дёргать
+             через adb. Приложению он не нужен (установка профилей при запуске идёт через
+             androidx.startup, а не через этот ресивер), поэтому убираем из merged-манифеста. -->
+        <receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            tools:node="remove" />
     </application>
 
 </manifest>
