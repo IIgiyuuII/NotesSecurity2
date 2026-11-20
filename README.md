@@ -132,3 +132,162 @@ debug-подпись — собрать без параметров и снов�
 - Ссылку на репозиторий загрузите в Moodle до дедлайна. В README своего репозитория добавьте
   раздел с командами adb и их выводом для пунктов 3–6.
 - Не коммитьте `local.properties`, ключи (`*.jks`) и `client/signing.properties`.
+
+
+---
+
+# Отчёт: доказательства закрытых точек входа (пункты 3–6)
+
+> Вывод команд ниже нужно вставить из своего эмулятора (Google Play, API 34+) после установки
+> сборки: `./gradlew :notes:installDebug :client:installDebug`. Блоки с `<вставить вывод>`
+> заполняются реальным выводом, не пересказом.
+
+## Пункт 3. Deep link
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d "notes://note/1"
+adb shell am start -a android.intent.action.VIEW -d "notes://note/999999"
+adb shell am start -a android.intent.action.VIEW -d "notes://note/abc"
+adb shell am start -a android.intent.action.VIEW -d "notes://note/"
+adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime"
+```
+
+```
+
+$ adb shell am start -a android.intent.action.VIEW -d "notes://note/1"
+Starting: Intent { act=android.intent.action.VIEW dat=notes://note/... }
+Warning: Activity not started, its current task has been brought to the front
+
+
+$ adb shell am start -a android.intent.action.VIEW -d "notes://note/999999"
+Starting: Intent { act=android.intent.action.VIEW dat=notes://note/... }
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+
+
+$ adb shell am start -a android.intent.action.VIEW -d "notes://note/abc"
+Starting: Intent { act=android.intent.action.VIEW dat=notes://note/... }
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+
+
+$ adb shell am start -W -a android.intent.action.VIEW -d "notes://note/"
+Starting: Intent { act=android.intent.action.VIEW dat=notes://note/... }
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+Status: ok
+LaunchState: UNKNOWN (0)
+Activity: edu.androidsec.notes/.MainActivity
+TotalTime: 0
+WaitTime: 14
+Complete
+
+
+$ adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime"
+11-20 18:42:22.912 12240 12240 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+
+```
+Что видно на экране: `1` — открывается заметка; `999999` — «Заметка не найдена», редактор не
+открывается; `abc` и пустой id — «Некорректная ссылка на заметку».
+
+## Пункт 4. Ресивер «Готово» закрыт
+
+```bash
+adb logcat -c
+adb shell am broadcast -n edu.androidsec.notes/.reminder.ReminderActionReceiver -a edu.androidsec.notes.action.DONE --el edu.androidsec.notes.extra.NOTE_ID 1
+adb shell am broadcast -a edu.androidsec.notes.action.DONE -p edu.androidsec.notes --el edu.androidsec.notes.extra.NOTE_ID 1
+adb logcat -d | grep -E "DONE received|[VDIWEF] ReminderActionReceiver *:"
+```
+
+```
+
+$ adb shell am broadcast -n edu.androidsec.notes/.reminder.ReminderActionReceiver -a edu.androidsec.notes.action.DONE --el edu.androidsec.notes.extra.NOTE_ID 1
+Broadcasting: Intent { act=edu.androidsec.notes.action.DONE flg=0x400000 cmp=edu.androidsec.notes/.reminder.ReminderActionReceiver (has extras) }
+Broadcast completed: result=0
+
+
+$ adb shell am broadcast -a edu.androidsec.notes.action.DONE -p edu.androidsec.notes --el edu.androidsec.notes.extra.NOTE_ID 1
+Broadcasting: Intent { act=edu.androidsec.notes.action.DONE flg=0x400000 pkg=edu.androidsec.notes (has extras) }
+Broadcast completed: result=0
+
+
+$ adb logcat -d | grep -E "DONE received|[VDIWEF] ReminderActionReceiver *:"
+
+
+
+```
+
+Чтобы показать, что «Готово» из самого уведомления работает: нажать «Напомнить», дождаться
+уведомления, нажать «Готово» и выполнить `adb logcat -d | grep "DONE received"`.
+
+```
+
+```
+
+## Пункт 5. FileProvider не читается снаружи
+
+```bash
+adb shell content read --uri content://edu.androidsec.notes.files/exports/1.txt
+```
+
+```
+
+$ adb shell content read --uri content://edu.androidsec.notes.files/exports/1.txt
+Error while accessing provider:edu.androidsec.notes.files
+java.lang.SecurityException: Permission Denial: opening provider androidx.core.content.FileProvider from (null) (pid=21360, uid=2000) that is not exported from UID 10411
+
+```
+
+## Пункт 6. Провайдер заголовков только для своих
+
+```bash
+adb shell content query  --uri content://edu.androidsec.notes.provider/notes
+adb shell content insert --uri content://edu.androidsec.notes.provider/notes --bind title:s:hacked
+adb shell content delete --uri content://edu.androidsec.notes.provider/notes
+adb shell am start -n edu.androidsec.notes.client/.MainActivity
+adb logcat -d -s TitlesProvider
+adb shell dumpsys package edu.androidsec.notes.client | grep READ_NOTES
+
+```
+
+```
+
+$ adb shell content query  --uri content://edu.androidsec.notes.provider/notes
+Error while accessing provider:edu.androidsec.notes.provider
+java.lang.SecurityException: Permission Denial: opening provider edu.androidsec.notes.provider.TitlesProvider from (null) (pid=25055, uid=2000) requires edu.androidsec.notes.permission.READ_NOTES or edu.androidsec.notes.permission.READ_NOTES
+
+
+
+
+$ adb shell content insert --uri content://edu.androidsec.notes.provider/notes --bind title:s:hacked
+Error while accessing provider:edu.androidsec.notes.provider
+java.lang.SecurityException: Permission Denial: opening provider edu.androidsec.notes.provider.TitlesProvider from (null) (pid=25084, uid=2000) requires edu.androidsec.notes.permission.READ_NOTES or edu.androidsec.notes.permission.READ_NOTES
+
+
+
+
+
+$ adb shell content delete --uri content://edu.androidsec.notes.provider/notes
+Error while accessing provider:edu.androidsec.notes.provider
+java.lang.SecurityException: Permission Denial: opening provider edu.androidsec.notes.provider.TitlesProvider from (null) (pid=25107, uid=2000) requires edu.androidsec.notes.permission.READ_NOTES or edu.androidsec.notes.permission.READ_NOTES
+
+$ adb shell am start -n edu.androidsec.notes.client/.MainActivity
+Starting: Intent { cmp=edu.androidsec.notes.client/.MainActivity }
+
+$ adb logcat -d -s TitlesProvider
+--------- beginning of main
+11-20 19:29:28.771  4129 25066 I TitlesProvider: query from uid=10472 package=edu.androidsec.notes.client
+11-20 19:29:30.211  4129 25066 I TitlesProvider: query from uid=10472 package=edu.androidsec.notes.client
+
+
+$ adb shell dumpsys package edu.androidsec.notes.client | grep READ_NOTES
+      edu.androidsec.notes.permission.READ_NOTES
+      edu.androidsec.notes.permission.READ_NOTES: granted=true
+
+```
+
+
+`adb logcat -d | grep -i SecurityException`.
+
+
+
+## `bash scripts/check.sh all`
+
+
