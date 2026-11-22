@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -154,7 +156,10 @@ private fun NotesListContent(
     }
 }
 
-/** Карточка заметки; общая для списка и поиска. Без [onDelete] кнопки удаления нет. */
+/**
+ * Карточка заметки; общая для списка и поиска. Без [onDelete] кнопки удаления нет.
+ * У секретной заметки показываются только заголовок и иконка замка: ни текста, ни тегов.
+ */
 @Composable
 internal fun NoteRow(note: Note, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
     Card(
@@ -168,28 +173,42 @@ internal fun NoteRow(note: Note, onClick: () -> Unit, onDelete: (() -> Unit)? = 
             modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = note.title.ifBlank { stringResource(R.string.note_untitled) },
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (note.body.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (note.isSecret) {
+                        Icon(
+                            Icons.Filled.Lock,
+                            contentDescription = stringResource(R.string.note_secret_icon),
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
+                        )
+                    }
                     Text(
-                        text = note.body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (note.tags.isNotEmpty()) {
-                    Text(
-                        text = NoteValidator.formatTags(note.tags),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = note.title.ifBlank { stringResource(R.string.note_untitled) },
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                }
+                if (!note.isSecret) {
+                    if (note.body.isNotBlank()) {
+                        Text(
+                            text = note.body,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (note.tags.isNotEmpty()) {
+                        Text(
+                            text = NoteValidator.formatTags(note.tags),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
             if (onDelete != null) {

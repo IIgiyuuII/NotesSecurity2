@@ -31,6 +31,8 @@ data class NoteUiState(
     val photoPath: String? = null,
     /** Заметки с таким id нет (например, deep link на удалённую): редактировать нечего. */
     val notFound: Boolean = false,
+    /** Секретная заметка: экран защищён от скриншотов, текст не попадает в список и уведомления. */
+    val isSecret: Boolean = false,
 ) {
     val isNew: Boolean get() = noteId == 0L
 }
@@ -76,14 +78,14 @@ class NoteViewModel(
                 return@launch
             }
             form.load(note)
-            _uiState.update { it.copy(isLoading = false, photoPath = note.photoPath) }
+            _uiState.update { it.copy(isLoading = false, photoPath = note.photoPath, isSecret = note.isSecret) }
         }
     }
 
     /** Заметка в том виде, как её сейчас видит пользователь (для сохранения и экспорта). */
     fun currentNote(): Note {
         val state = _uiState.value
-        return form.toNote(state.noteId, state.photoPath)
+        return form.toNote(state.noteId, state.photoPath, state.isSecret)
     }
 
     fun save() {
@@ -126,12 +128,13 @@ class NoteViewModel(
     }
 
     fun removePhoto() = _uiState.update { it.copy(photoPath = null) }
+    fun onSecretChange(value: Boolean) = _uiState.update { it.copy(isSecret = value) }
 
     /** Вызывается экраном, когда разрешение на уведомления уже получено. */
     fun scheduleReminder() {
         val state = _uiState.value
         if (state.isNew || state.notFound) return
-        reminderScheduler.schedule(state.noteId, form.title.text.toString())
+        reminderScheduler.schedule(state.noteId, form.title.text.toString(), state.isSecret)
         _events.trySend(NoteEvent.Message(R.string.reminder_scheduled))
     }
 

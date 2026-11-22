@@ -26,7 +26,7 @@ class AppContainer(context: Context) {
 
     val photoStore: PhotoStore by lazy { PhotoStore(appContext) }
 
-    val reminderScheduler: ReminderScheduler by lazy { ReminderScheduler(appContext, appScope) }
+    val reminderScheduler: ReminderScheduler by lazy { ReminderScheduler(appContext, appScope, notesRepository) }
 
     /** Удаление с отменой: таймер живёт здесь, а не во ViewModel экрана. */
     val noteDeleter: NoteDeleter by lazy {

@@ -98,12 +98,13 @@ class NoteForm {
         tagsError = errors.firstOrNull { it.field == NoteField.TAGS }
     }
 
-    fun toNote(id: Long, photoPath: String?): Note = Note(
+    fun toNote(id: Long, photoPath: String?, isSecret: Boolean): Note = Note(
         id = id,
         title = title.text.toString(),
         body = body.text.toString(),
         photoPath = photoPath,
         tags = NoteValidator.parseTags(tags.text.toString()),
+        isSecret = isSecret,
     )
 }
 

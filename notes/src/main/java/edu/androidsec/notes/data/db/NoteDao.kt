@@ -72,6 +72,7 @@ interface NoteDao {
      * Синхронный запрос заголовков: вызывается из `ContentProvider.query()`,
      * который работает в binder-потоке, а не в главном.
      */
-    @Query("SELECT id, title FROM notes WHERE deleted_at IS NULL ORDER BY id")
+    // Секретные заметки наружу не отдаём: даже заголовок может быть чувствительным.
+    @Query("SELECT id, title FROM notes WHERE deleted_at IS NULL AND is_secret = 0 ORDER BY id")
     fun titlesBlocking(): List<NoteTitle>
 }

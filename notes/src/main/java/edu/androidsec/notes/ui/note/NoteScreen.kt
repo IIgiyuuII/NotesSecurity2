@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -46,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.androidsec.notes.R
 import edu.androidsec.notes.appContainer
+import edu.androidsec.notes.clipboard.NoteClipboard
 import edu.androidsec.notes.domain.NoteError
 import edu.androidsec.notes.domain.NoteValidator
 import edu.androidsec.notes.photo.PhotoStore
@@ -61,6 +63,12 @@ fun NoteScreen(noteId: Long, onBack: () -> Unit) {
         NoteViewModel(noteId, container.notesRepository, container.photoStore, container.reminderScheduler, container.noteDeleter)
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Секретная заметка: окно защищено от скриншотов и записи (FLAG_SECURE), в «Недавних»
+    // нет миниатюры. Защита включена и пока заметка загружается: до загрузки неизвестно,
+    // секретная ли она, поэтому закрываем окно заранее. Эффект живёт в самом экране заметки,
+    // так что работает при любом входе: из списка, по deep link и из уведомления.
+    SecureWindowEffect(enabled = state.isSecret || state.isLoading)
 
     // Системные диалоги (разрешение, выбор фото) живут в UI; результат уходит во ViewModel.
     val requestNotificationPermission = rememberNotificationPermission(onGranted = viewModel::scheduleReminder)
@@ -86,6 +94,12 @@ fun NoteScreen(noteId: Long, onBack: () -> Unit) {
         onSave = viewModel::save,
         onRemind = requestNotificationPermission,
         onShare = { ShareNote.shareNoteAsFile(context, viewModel.currentNote()) },
+        onSecretChange = viewModel::onSecretChange,
+        onCopy = {
+            val note = viewModel.currentNote()
+            // Для секретной заметки содержимое буфера помечается как чувствительное.
+            NoteClipboard.copy(context, note.body, sensitive = note.isSecret)
+        },
     )
 }
 
@@ -102,6 +116,8 @@ private fun NoteContent(
     onSave: () -> Unit,
     onRemind: () -> Unit,
     onShare: () -> Unit,
+    onSecretChange: (Boolean) -> Unit,
+    onCopy: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -209,6 +225,23 @@ private fun NoteContent(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.note_field_secret),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                stringResource(R.string.note_secret_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(checked = state.isSecret, onCheckedChange = onSecretChange)
+                    }
+
                     state.photoPath?.let { NotePhoto(path = it, photoStore = photoStore) }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -220,6 +253,9 @@ private fun NoteContent(
 
                     Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.note_save))
+                    }
+                    OutlinedButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.note_copy_text))
                     }
                     OutlinedButton(onClick = onRemind, enabled = !state.isNew, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.note_remind))
