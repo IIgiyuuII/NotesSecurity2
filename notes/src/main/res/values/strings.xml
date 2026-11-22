@@ -7,6 +7,15 @@
     <string name="list_empty">Заметок пока нет. Нажмите «+», чтобы создать первую.</string>
     <string name="list_add">Новая заметка</string>
     <string name="list_delete">Удалить заметку</string>
+    <string name="list_search">Поиск</string>
+
+    <!-- Поиск -->
+    <string name="search_title">Поиск</string>
+    <string name="search_hint">Заголовок или текст</string>
+    <string name="search_empty">Ничего не найдено</string>
+    <string name="search_sort_title">По заголовку</string>
+    <string name="search_sort_newest">Сначала новые</string>
+    <string name="search_sort_oldest">Сначала старые</string>
 
     <!-- Экран заметки -->
     <string name="note_title_new">Новая заметка</string>

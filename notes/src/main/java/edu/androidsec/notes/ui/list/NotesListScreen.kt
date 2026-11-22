@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,10 +38,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.androidsec.notes.R
 import edu.androidsec.notes.appContainer
 import edu.androidsec.notes.domain.Note
+import edu.androidsec.notes.domain.NoteValidator
 import edu.androidsec.notes.ui.navigation.NoteRoute
 
 @Composable
-fun NotesListScreen(onOpenNote: (Long) -> Unit) {
+fun NotesListScreen(onOpenNote: (Long) -> Unit, onOpenSearch: () -> Unit) {
     val container = LocalContext.current.appContainer
     val viewModel: NotesListViewModel = viewModel { NotesListViewModel(container.notesRepository) }
     val notes by viewModel.notes.collectAsStateWithLifecycle()
@@ -50,6 +52,7 @@ fun NotesListScreen(onOpenNote: (Long) -> Unit) {
         onOpen = onOpenNote,
         onAdd = { onOpenNote(NoteRoute.NEW_NOTE_ID) },
         onDelete = viewModel::delete,
+        onSearch = onOpenSearch,
     )
 }
 
@@ -60,9 +63,19 @@ private fun NotesListContent(
     onOpen: (Long) -> Unit,
     onAdd: () -> Unit,
     onDelete: (Long) -> Unit,
+    onSearch: () -> Unit,
 ) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.list_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.list_title)) },
+                actions = {
+                    IconButton(onClick = onSearch) {
+                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.list_search))
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAdd) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.list_add))
@@ -103,8 +116,9 @@ private fun NotesListContent(
     }
 }
 
+/** Карточка заметки; общая для списка и поиска. Без [onDelete] кнопки удаления нет. */
 @Composable
-private fun NoteRow(note: Note, onClick: () -> Unit, onDelete: () -> Unit) {
+internal fun NoteRow(note: Note, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -130,9 +144,20 @@ private fun NoteRow(note: Note, onClick: () -> Unit, onDelete: () -> Unit) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (note.tags.isNotEmpty()) {
+                    Text(
+                        text = NoteValidator.formatTags(note.tags),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.list_delete))
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.list_delete))
+                }
             }
         }
     }

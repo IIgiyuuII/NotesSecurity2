@@ -14,3 +14,7 @@ data class NoteRoute(val id: Long) {
         const val NEW_NOTE_ID = 0L
     }
 }
+
+/** Экран поиска и сортировки; открывается из списка. */
+@Serializable
+data object SearchRoute

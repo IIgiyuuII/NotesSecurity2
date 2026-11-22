@@ -1,11 +1,13 @@
 package edu.androidsec.notes.data
 
 import edu.androidsec.notes.data.db.NoteDao
+import edu.androidsec.notes.data.db.SearchQuery
 import edu.androidsec.notes.data.db.toDomain
 import edu.androidsec.notes.data.db.toEntity
 import edu.androidsec.notes.domain.Note
 import edu.androidsec.notes.domain.NoteError
 import edu.androidsec.notes.domain.NoteValidator
+import edu.androidsec.notes.domain.SearchSort
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -16,6 +18,13 @@ class InvalidNoteException(val errors: List<NoteError>) :
 /** Порт доступа к заметкам. ViewModel-и зависят только от него. */
 interface NotesRepository {
     fun observeAll(): Flow<List<Note>>
+
+    /**
+     * Поиск по заголовку и тексту; `%`, `_` и `\` в [query] ищутся буквально.
+     * Пустая строка возвращает все заметки. Список обновляется при изменении базы.
+     */
+    fun search(query: String, sort: SearchSort): Flow<List<Note>>
+
     suspend fun get(id: Long): Note?
 
     /**
@@ -30,6 +39,18 @@ class RoomNotesRepository(private val dao: NoteDao) : NotesRepository {
 
     override fun observeAll(): Flow<List<Note>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
+
+    override fun search(query: String, sort: SearchSort): Flow<List<Note>> {
+        val pattern = SearchQuery.likePattern(query)
+        // Каждый вариант сортировки — отдельный готовый запрос; `when` по enum
+        // без ветки else: добавить вариант и забыть запрос компилятор не даст.
+        val source = when (sort) {
+            SearchSort.TITLE -> dao.searchByTitle(pattern)
+            SearchSort.UPDATED_NEWEST -> dao.searchNewestFirst(pattern)
+            SearchSort.UPDATED_OLDEST -> dao.searchOldestFirst(pattern)
+        }
+        return source.map { list -> list.map { it.toDomain() } }
+    }
 
     override suspend fun get(id: Long): Note? = dao.getById(id)?.toDomain()
 
