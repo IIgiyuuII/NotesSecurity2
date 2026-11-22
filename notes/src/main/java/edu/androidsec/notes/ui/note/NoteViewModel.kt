@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import edu.androidsec.notes.R
 import edu.androidsec.notes.data.InvalidNoteException
 import edu.androidsec.notes.data.NotesRepository
+import edu.androidsec.notes.delete.NoteDeleter
 import edu.androidsec.notes.domain.Note
 import edu.androidsec.notes.photo.PhotoStore
 import edu.androidsec.notes.reminder.ReminderScheduler
@@ -45,6 +46,7 @@ class NoteViewModel(
     private val repository: NotesRepository,
     private val photoStore: PhotoStore,
     private val reminderScheduler: ReminderScheduler,
+    private val deleter: NoteDeleter,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NoteUiState(noteId = noteId))
@@ -100,15 +102,15 @@ class NoteViewModel(
         }
     }
 
+    /**
+     * Удаление не мгновенное: [NoteDeleter] прячет заметку и даёт 5 секунд на отмену, а экран
+     * закрывается; снекбар «Заметка удалена / Отменить» покажет список. Несохранённую
+     * (новую) заметку удалять нечем: просто закрываем экран.
+     */
     fun delete() {
         val state = _uiState.value
-        viewModelScope.launch {
-            if (!state.isNew) {
-                repository.delete(state.noteId)
-                _events.send(NoteEvent.Message(R.string.note_deleted))
-            }
-            _events.send(NoteEvent.Close)
-        }
+        if (!state.isNew && !state.notFound) deleter.delete(state.noteId)
+        _events.trySend(NoteEvent.Close)
     }
 
     /** Выбор фото вернул `content://`-URI: копируем файл к себе, право на чтение URI временное. */

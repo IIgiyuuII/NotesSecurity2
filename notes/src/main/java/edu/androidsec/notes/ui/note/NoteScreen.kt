@@ -58,7 +58,7 @@ fun NoteScreen(noteId: Long, onBack: () -> Unit) {
     val context = LocalContext.current
     val container = context.appContainer
     val viewModel: NoteViewModel = viewModel(key = "note-$noteId") {
-        NoteViewModel(noteId, container.notesRepository, container.photoStore, container.reminderScheduler)
+        NoteViewModel(noteId, container.notesRepository, container.photoStore, container.reminderScheduler, container.noteDeleter)
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 

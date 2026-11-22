@@ -39,6 +39,15 @@ class PhotoStore(private val context: Context) {
         BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
+    /**
+     * Удаляет файл фото при окончательном удалении заметки. Путь пришёл из базы, поэтому
+     * удаляется только файл, лежащий прямо в нашей папке `photos/`; всё остальное игнорируется.
+     */
+    suspend fun delete(path: String) = withContext(Dispatchers.IO) {
+        val file = File(path).canonicalFile
+        if (file.parentFile == dir.canonicalFile) file.delete()
+    }
+
     companion object {
         const val DIR = "photos"
     }

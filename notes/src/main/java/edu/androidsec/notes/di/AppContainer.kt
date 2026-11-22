@@ -4,6 +4,7 @@ import android.content.Context
 import edu.androidsec.notes.data.NotesRepository
 import edu.androidsec.notes.data.RoomNotesRepository
 import edu.androidsec.notes.data.db.NotesDatabase
+import edu.androidsec.notes.delete.NoteDeleter
 import edu.androidsec.notes.photo.PhotoStore
 import edu.androidsec.notes.reminder.ReminderScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -26,4 +27,9 @@ class AppContainer(context: Context) {
     val photoStore: PhotoStore by lazy { PhotoStore(appContext) }
 
     val reminderScheduler: ReminderScheduler by lazy { ReminderScheduler(appContext, appScope) }
+
+    /** Удаление с отменой: таймер живёт здесь, а не во ViewModel экрана. */
+    val noteDeleter: NoteDeleter by lazy {
+        NoteDeleter(appContext, notesRepository, appScope, photoStore, reminderScheduler)
+    }
 }

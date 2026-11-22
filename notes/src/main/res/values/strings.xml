@@ -28,6 +28,7 @@
     <string name="note_saved">Сохранено</string>
     <string name="note_invalid">Не сохранено: данные не прошли проверку</string>
     <string name="note_deleted">Заметка удалена</string>
+    <string name="note_undo">Отменить</string>
     <string name="note_not_found">Заметка не найдена</string>
     <string name="note_not_found_hint">Заметки с таким номером нет: её удалили или ссылка указывает на несуществующий id.</string>
     <string name="note_save_first">Сначала сохраните заметку</string>

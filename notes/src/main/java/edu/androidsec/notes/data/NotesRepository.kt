@@ -32,7 +32,24 @@ interface NotesRepository {
      * @throws InvalidNoteException если заметка нарушает правила [NoteValidator]; в базу ничего не пишется.
      */
     suspend fun save(note: Note): Long
-    suspend fun delete(id: Long)
+
+    /**
+     * Удаление в два шага (см. NoteDeleter). Шаг 1: спрятать заметку, ничего не стирая.
+     * @return true, если заметка была живой и теперь спрятана.
+     */
+    suspend fun softDelete(id: Long): Boolean
+
+    /** «Отменить»: вернуть спрятанную заметку целиком. @return true, если было что возвращать. */
+    suspend fun undoDelete(id: Long): Boolean
+
+    /**
+     * Шаг 2: окончательно удалить спрятанную заметку. Живую не трогает.
+     * @return пути фото, чьи строки реально удалены (файлы удаляет вызывающий).
+     */
+    suspend fun purgeDeleted(id: Long): List<String>
+
+    /** Окончательно удалить всё, что спрятано раньше [cutoffMillis] (остатки после убитого процесса). */
+    suspend fun purgeDeletedBefore(cutoffMillis: Long): List<String>
 }
 
 class RoomNotesRepository(private val dao: NoteDao) : NotesRepository {
@@ -65,5 +82,21 @@ class RoomNotesRepository(private val dao: NoteDao) : NotesRepository {
         return if (note.isNew) rowId else note.id
     }
 
-    override suspend fun delete(id: Long) = dao.deleteById(id)
+    override suspend fun softDelete(id: Long): Boolean =
+        dao.markDeleted(id, System.currentTimeMillis()) > 0
+
+    override suspend fun undoDelete(id: Long): Boolean = dao.restore(id) > 0
+
+    override suspend fun purgeDeleted(id: Long): List<String> {
+        // Сначала читаем путь фото, потом удаляем строку. Если между этими двумя шагами
+        // сработала «Отменить», условие DELETE ничего не удалит, и мы вернём пустой список:
+        // файл возвращённой заметки останется на месте.
+        val photos = dao.deletedPhotoPaths(id)
+        return if (dao.purgeDeleted(id) > 0) photos else emptyList()
+    }
+
+    override suspend fun purgeDeletedBefore(cutoffMillis: Long): List<String> {
+        val photos = dao.expiredPhotoPaths(cutoffMillis)
+        return if (dao.purgeExpired(cutoffMillis) > 0) photos else emptyList()
+    }
 }
