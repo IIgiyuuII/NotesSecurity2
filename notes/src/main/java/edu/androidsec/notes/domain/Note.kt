@@ -8,6 +8,10 @@ data class Note(
     /** Абсолютный путь к копии фото во внутреннем хранилище приложения или null. */
     val photoPath: String? = null,
     val updatedAt: Long = 0L,
+    /** До 5 тегов; правила — в [NoteValidator]. */
+    val tags: List<String> = emptyList(),
+    /** Секретная заметка: скрывается в списке, экран защищён от скриншотов. */
+    val isSecret: Boolean = false,
 ) {
     val isNew: Boolean get() = id == 0L
 }

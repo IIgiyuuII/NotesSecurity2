@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import edu.androidsec.notes.data.InvalidNoteException
 
 /** Всё, что экран заметки рисует. `noteId == 0` — новая, ещё не сохранённая заметка. */
 data class NoteUiState(
@@ -88,9 +89,16 @@ class NoteViewModel(
     fun save() {
         if (_uiState.value.notFound) return
         viewModelScope.launch {
-            val id = repository.save(_uiState.value.toNote())
-            _uiState.update { it.copy(noteId = id) }
-            _events.send(NoteEvent.Message(R.string.note_saved))
+            try {
+                val id = repository.save(_uiState.value.toNote())
+                _uiState.update { it.copy(noteId = id) }
+                _events.send(NoteEvent.Message(R.string.note_saved))
+            } catch (e: InvalidNoteException) {
+                // Репозиторий отказал: в базу ничего не записано. Подробные подсказки
+                // под полями появятся в пункте 3, пока достаточно сообщения.
+                Log.w(TAG, "Note rejected: ${e.errors}")
+                _events.send(NoteEvent.Message(R.string.note_invalid))
+            }
         }
     }
 

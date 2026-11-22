@@ -4,9 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [NoteEntity::class], version = 1, exportSchema = false)
+@Database(entities = [NoteEntity::class], version = 2, exportSchema = false)
 abstract class NotesDatabase : RoomDatabase() {
 
     abstract fun noteDao(): NoteDao
@@ -14,8 +15,26 @@ abstract class NotesDatabase : RoomDatabase() {
     companion object {
         private const val NAME = "notes.db"
 
+        /**
+         * Версия 1 → 2: теги, признак «секретная» и метка отложенного удаления.
+         *
+         * ALTER TABLE ... ADD COLUMN не трогает существующие строки, поэтому все заметки,
+         * созданные до обновления, сохраняются: они получают значения по умолчанию
+         * (без тегов, не секретная, не удалена). DEFAULT здесь должен совпадать
+         * с defaultValue в NoteEntity, иначе Room при открытии сочтёт схему неверной.
+         * fallbackToDestructiveMigration не используется: потеря данных недопустима.
+         */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE notes ADD COLUMN is_secret INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE notes ADD COLUMN deleted_at INTEGER")
+            }
+        }
+
         fun create(context: Context): NotesDatabase =
             Room.databaseBuilder(context.applicationContext, NotesDatabase::class.java, NAME)
+                .addMigrations(MIGRATION_1_2)
                 .addCallback(SeedCallback)
                 .build()
     }
