@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import edu.androidsec.notes.R
+import edu.androidsec.notes.data.InvalidNoteException
 import edu.androidsec.notes.data.NotesRepository
 import edu.androidsec.notes.domain.Note
 import edu.androidsec.notes.photo.PhotoStore
@@ -18,21 +19,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import edu.androidsec.notes.data.InvalidNoteException
 
-/** Всё, что экран заметки рисует. `noteId == 0` — новая, ещё не сохранённая заметка. */
+/**
+ * Всё, что экран заметки рисует, кроме текстовых полей (они в [NoteForm]).
+ * `noteId == 0` — новая, ещё не сохранённая заметка.
+ */
 data class NoteUiState(
     val noteId: Long,
     val isLoading: Boolean = true,
-    val title: String = "",
-    val body: String = "",
     val photoPath: String? = null,
     /** Заметки с таким id нет (например, deep link на удалённую): редактировать нечего. */
     val notFound: Boolean = false,
 ) {
     val isNew: Boolean get() = noteId == 0L
-
-    fun toNote(): Note = Note(id = noteId, title = title, body = body, photoPath = photoPath)
 }
 
 /** Одноразовые события для экрана: показать сообщение или закрыть экран. */
@@ -50,6 +49,9 @@ class NoteViewModel(
 
     private val _uiState = MutableStateFlow(NoteUiState(noteId = noteId))
     val uiState: StateFlow<NoteUiState> = _uiState.asStateFlow()
+
+    /** Поля ввода с фильтрами и сообщениями об ошибках. */
+    val form = NoteForm()
 
     private val _events = Channel<NoteEvent>(Channel.BUFFERED)
     val events: Flow<NoteEvent> = _events.receiveAsFlow()
@@ -71,32 +73,28 @@ class NoteViewModel(
                 _uiState.update { it.copy(isLoading = false, notFound = true) }
                 return@launch
             }
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    title = note.title,
-                    body = note.body,
-                    photoPath = note.photoPath,
-                )
-            }
+            form.load(note)
+            _uiState.update { it.copy(isLoading = false, photoPath = note.photoPath) }
         }
     }
 
-    fun onTitleChange(value: String) = _uiState.update { it.copy(title = value) }
-
-    fun onBodyChange(value: String) = _uiState.update { it.copy(body = value) }
+    /** Заметка в том виде, как её сейчас видит пользователь (для сохранения и экспорта). */
+    fun currentNote(): Note {
+        val state = _uiState.value
+        return form.toNote(state.noteId, state.photoPath)
+    }
 
     fun save() {
         if (_uiState.value.notFound) return
         viewModelScope.launch {
             try {
-                val id = repository.save(_uiState.value.toNote())
+                val id = repository.save(currentNote())
                 _uiState.update { it.copy(noteId = id) }
                 _events.send(NoteEvent.Message(R.string.note_saved))
             } catch (e: InvalidNoteException) {
-                // Репозиторий отказал: в базу ничего не записано. Подробные подсказки
-                // под полями появятся в пункте 3, пока достаточно сообщения.
+                // Репозиторий отказал: в базу ничего не записано. Причины показываем под полями.
                 Log.w(TAG, "Note rejected: ${e.errors}")
+                form.showErrors(e.errors)
                 _events.send(NoteEvent.Message(R.string.note_invalid))
             }
         }
@@ -131,7 +129,7 @@ class NoteViewModel(
     fun scheduleReminder() {
         val state = _uiState.value
         if (state.isNew || state.notFound) return
-        reminderScheduler.schedule(state.noteId, state.title)
+        reminderScheduler.schedule(state.noteId, form.title.text.toString())
         _events.trySend(NoteEvent.Message(R.string.reminder_scheduled))
     }
 

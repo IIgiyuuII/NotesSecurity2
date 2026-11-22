@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,11 +39,15 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.androidsec.notes.R
 import edu.androidsec.notes.appContainer
+import edu.androidsec.notes.domain.NoteError
+import edu.androidsec.notes.domain.NoteValidator
 import edu.androidsec.notes.photo.PhotoStore
 import edu.androidsec.notes.photo.rememberPhotoPicker
 import edu.androidsec.notes.reminder.rememberNotificationPermission
@@ -71,16 +77,15 @@ fun NoteScreen(noteId: Long, onBack: () -> Unit) {
 
     NoteContent(
         state = state,
+        form = viewModel.form,
         photoStore = container.photoStore,
         onBack = onBack,
         onDelete = viewModel::delete,
-        onTitleChange = viewModel::onTitleChange,
-        onBodyChange = viewModel::onBodyChange,
         onAttachPhoto = pickPhoto,
         onRemovePhoto = viewModel::removePhoto,
         onSave = viewModel::save,
         onRemind = requestNotificationPermission,
-        onShare = { ShareNote.shareNoteAsFile(context, state.toNote()) },
+        onShare = { ShareNote.shareNoteAsFile(context, viewModel.currentNote()) },
     )
 }
 
@@ -88,11 +93,10 @@ fun NoteScreen(noteId: Long, onBack: () -> Unit) {
 @Composable
 private fun NoteContent(
     state: NoteUiState,
+    form: NoteForm,
     photoStore: PhotoStore,
     onBack: () -> Unit,
     onDelete: () -> Unit,
-    onTitleChange: (String) -> Unit,
-    onBodyChange: (String) -> Unit,
     onAttachPhoto: () -> Unit,
     onRemovePhoto: () -> Unit,
     onSave: () -> Unit,
@@ -148,17 +152,60 @@ private fun NoteContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OutlinedTextField(
-                        value = state.title,
-                        onValueChange = onTitleChange,
+                        state = form.title,
                         label = { Text(stringResource(R.string.note_field_title)) },
-                        singleLine = true,
+                        lineLimits = TextFieldLineLimits.SingleLine,
+                        inputTransformation = form.titleFilter,
+                        isError = form.titleError != null,
+                        supportingText = {
+                            SupportText(
+                                error = form.titleError,
+                                normal = stringResource(
+                                    R.string.field_counter,
+                                    symbolCount(form.title.text),
+                                    NoteValidator.TITLE_MAX_LENGTH,
+                                ),
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
-                        value = state.body,
-                        onValueChange = onBodyChange,
+                        state = form.body,
                         label = { Text(stringResource(R.string.note_field_body)) },
-                        minLines = 4,
+                        lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 4),
+                        inputTransformation = form.bodyFilter,
+                        isError = form.bodyError != null,
+                        supportingText = {
+                            SupportText(
+                                error = form.bodyError,
+                                normal = stringResource(
+                                    R.string.field_counter,
+                                    symbolCount(form.body.text),
+                                    NoteValidator.BODY_MAX_LENGTH,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        state = form.tags,
+                        label = { Text(stringResource(R.string.note_field_tags)) },
+                        lineLimits = TextFieldLineLimits.SingleLine,
+                        inputTransformation = form.tagsFilter,
+                        // Заглавная буква отклоняется белым списком, поэтому клавиатура
+                        // не должна сама делать первую букву заглавной или «исправлять» слова.
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Ascii,
+                        ),
+                        isError = form.tagsError != null,
+                        supportingText = {
+                            SupportText(
+                                error = form.tagsError,
+                                normal = stringResource(R.string.tags_hint),
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -188,6 +235,15 @@ private fun NoteContent(
         }
     }
 }
+
+/** Под полем: причина отказа, если она есть, иначе обычная подсказка (счётчик или правило). */
+@Composable
+private fun SupportText(error: NoteError?, normal: String) {
+    Text(text = if (error != null) stringResource(error.messageRes()) else normal)
+}
+
+/** Длина в символах Unicode: так же считает [NoteValidator] (эмодзи — один символ). */
+private fun symbolCount(text: CharSequence): Int = Character.codePointCount(text, 0, text.length)
 
 @Composable
 private fun NotePhoto(path: String, photoStore: PhotoStore) {

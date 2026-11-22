@@ -33,6 +33,20 @@
     <!-- Deep link -->
     <string name="deeplink_invalid">Некорректная ссылка на заметку</string>
 
+    <!-- Поля ввода: подсказки и причины отказа -->
+    <string name="note_field_tags">Теги</string>
+    <string name="field_counter">%1$d / %2$d</string>
+    <string name="tags_hint">Через пробел, до 5 тегов: a-z, 0-9, «-»</string>
+    <string name="error_title_too_long">Заголовок не длиннее 100 символов</string>
+    <string name="error_title_multiline">Заголовок — одна строка</string>
+    <string name="error_title_bad_chars">В заголовке нельзя использовать управляющие символы</string>
+    <string name="error_body_too_long">Текст не длиннее 5000 символов</string>
+    <string name="error_body_bad_chars">В тексте нельзя использовать управляющие символы</string>
+    <string name="error_tags_too_many">Не больше 5 тегов</string>
+    <string name="error_tag_empty">Теги разделяются одним пробелом</string>
+    <string name="error_tag_too_long">Тег — не длиннее 20 символов</string>
+    <string name="error_tag_bad_chars">В тегах допустимы только a-z, 0-9 и «-»</string>
+
     <!-- Напоминания и разрешение на уведомления -->
     <string name="channel_reminders_name">Напоминания</string>
     <string name="channel_reminders_description">Напоминания о заметках</string>
